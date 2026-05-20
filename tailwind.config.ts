@@ -7,11 +7,11 @@ const config: Config = {
     extend: {
       colors: {
         vault: {
-          bg: "var(--vault-bg)",
-          surface: "var(--vault-surface)",
-          border: "var(--vault-border)",
-          accent: "var(--vault-accent)",
-          muted: "var(--vault-muted)",
+          bg: "rgb(var(--vault-bg) / <alpha-value>)",
+          surface: "rgb(var(--vault-surface) / <alpha-value>)",
+          border: "rgb(var(--vault-border) / <alpha-value>)",
+          accent: "rgb(var(--vault-accent) / <alpha-value>)",
+          muted: "rgb(var(--vault-muted) / <alpha-value>)",
         },
       },
     },
