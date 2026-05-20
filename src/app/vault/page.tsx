@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { AppHeader } from "@/components/AppHeader";
+import { ImportExportPanel } from "@/components/ImportExportPanel";
 import { VaultList } from "@/components/VaultList";
 import { useVaultStore } from "@/store/useVaultStore";
 import { useAutoLock } from "@/hooks/useAutoLock";
@@ -39,9 +40,25 @@ export default function VaultPage() {
   }
 
   return (
-    <main className="mx-auto min-h-screen max-w-6xl px-4 py-8">
+    <main className="mx-auto min-h-screen max-w-7xl px-4 py-8">
       <AppHeader />
-      <VaultList userId={userId} />
+
+      <div className="mt-6 flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-8">
+        <section
+          className="shrink-0 lg:w-[min(100%,20rem)]"
+          aria-labelledby="vault-io-title"
+        >
+          <h2 id="vault-io-title" className="sr-only">
+            Nhập và xuất dữ liệu
+          </h2>
+          <ImportExportPanel
+            userId={userId}
+          className="mb-6 lg:mb-0 lg:sticky lg:top-4 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto"
+          />
+        </section>
+
+        <VaultList userId={userId} />
+      </div>
     </main>
   );
 }

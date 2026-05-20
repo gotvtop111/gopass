@@ -17,6 +17,8 @@ import { Modal } from "@/components/Modal";
 interface ImportExportPanelProps {
   userId: string;
   disabled?: boolean;
+  /** Gộp thêm class cho khối bọc (vd: lg:sticky) */
+  className?: string;
 }
 
 const FORMAT_LABELS: Record<ImportFormat, string> = {
@@ -28,6 +30,7 @@ const FORMAT_LABELS: Record<ImportFormat, string> = {
 export function ImportExportPanel({
   userId,
   disabled,
+  className = "",
 }: ImportExportPanelProps) {
   const items = useVaultStore((s) => s.items);
   const encryptionKey = useVaultStore((s) => s.encryptionKey);
@@ -124,7 +127,9 @@ export function ImportExportPanel({
   };
 
   return (
-    <div className="mb-6 rounded-2xl border border-vault-border bg-vault-surface/60 p-4">
+    <div
+      className={`rounded-2xl border border-vault-border bg-vault-surface/60 p-4 ${className}`.trim()}
+    >
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-white">Import / Export</h2>
         <p className="text-xs text-vault-muted">

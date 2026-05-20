@@ -66,41 +66,312 @@ Lưu ý: File .env.local KHÔNG đưa lên GitHub (chứa secret). Biến môi t
         chỉ cấu hình trên Cloudflare Dashboard.
 
 ================================================================================
-PHẦN D — TRIỂN KHAI CLOUDFLARE PAGES (build trên cloud)
+PHẦN D — TRIỂN KHAI CLOUDFLARE PAGES (CHI TIẾT TỪNG BƯỚC)
 ================================================================================
 
-D1. Đăng nhập Cloudflare Dashboard
-    https://dash.cloudflare.com → Workers & Pages
+Mục tiêu Phần D: Tạo một trang web công khai (vd: https://site-password-vault.pages.dev)
+mà KHÔNG cần cài Node.js hay chạy lệnh trên máy bạn. Cloudflare sẽ:
+  (1) tải code từ GitHub
+  (2) chạy npm install + npm run build trên máy chủ của Cloudflare
+  (3) đăng file tĩnh trong thư mục out/ lên CDN toàn cầu
 
-D2. Create application → Pages → Connect to Git
+--------------------------------------------------------------------------------
+D0. KIỂM TRA TRƯỚC KHI BẮT ĐẦU (bắt buộc)
+--------------------------------------------------------------------------------
 
-D3. Authorize GitHub → chọn repository site-password-vault
+  [ ] Đã hoàn thành Phần B (Supabase có bảng profiles + vault, bật Email auth)
+  [ ] Đã hoàn thành Phần C (code đã nằm trên GitHub, thấy file package.json)
+  [ ] Có sẵn 2 giá trị từ Supabase (viết ra Notepad tạm):
+        • Project URL    → dùng cho NEXT_PUBLIC_SUPABASE_URL
+        • anon public key → dùng cho NEXT_PUBLIC_SUPABASE_ANON_KEY
+        (Lấy tại: Supabase → Project Settings → API)
 
-D4. Cấu hình Build (QUAN TRỌNG — copy chính xác):
+  Lấy URL và anon key:
+    1. Vào https://supabase.com/dashboard → chọn project
+    2. Biểu tượng bánh răng (Settings) → API
+    3. Project URL: copy nguyên, ví dụ https://abcdefghijklmnop.supabase.co
+    4. Project API keys → anon public: bấm Copy (chuỗi dài bắt đầu eyJ...)
 
-    ┌─────────────────────────────────────────────────────────────┐
-    │ Framework preset     │ None (hoặc Next.js nếu có)         │
-    │ Build command        │ npm run build                       │
-    │ Build output directory│ out                                │
-    │ Root directory       │ /  (để trống nếu code ở gốc repo)   │
-    └─────────────────────────────────────────────────────────────┘
+  CẢNH BÁO:
+    • KHÔNG dùng service_role key trên Cloudflare (chỉ dùng anon key).
+    • KHÔNG upload file .env.local lên GitHub.
 
-D5. Environment variables (Production) — Add variable:
+--------------------------------------------------------------------------------
+D1. ĐĂNG NHẬP VÀ VÀO ĐÚNG MỤC MENU
+--------------------------------------------------------------------------------
 
-    NEXT_PUBLIC_SUPABASE_URL      = https://xxxxx.supabase.co
-    NEXT_PUBLIC_SUPABASE_ANON_KEY = eyJhbGciOi... (anon key)
+  1. Mở trình duyệt → https://dash.cloudflare.com
+  2. Đăng nhập tài khoản Cloudflare (tạo mới nếu chưa có).
+  3. Ở cột trái, tìm mục:
+        Workers & Pages
+     (Đôi khi gộp trong nhóm "Compute"; tên có thể là "Workers & Pages").
 
-D6. (Khuyến nghị) Biến Node version:
-    - Settings → Environment variables → Add:
-      NODE_VERSION = 20
+  4. Bấm Workers & Pages → bạn sẽ thấy danh sách Workers / Pages (có thể trống).
 
-D7. Save and Deploy
-    - Cloudflare tự chạy: npm install → npm run build → publish thư mục out/
-    - Lần đầu mất khoảng 2–5 phút
+  Nếu lần đầu dùng Cloudflare: có thể hỏi chọn plan → chọn Free ($0).
 
-D8. Lấy URL trang web
-    - Sau khi Success: https://<tên-project>.pages.dev
-    - Có thể đổi tên project trong Settings → General
+--------------------------------------------------------------------------------
+D2. TẠO PROJECT PAGES MỚI — KẾT NỐI GITHUB
+--------------------------------------------------------------------------------
+
+  1. Bấm nút Create (hoặc "Create application") — thường góc trên phải.
+  2. Chọn tab / thẻ: Pages (KHÔNG chọn Workers nếu chỉ deploy website tĩnh).
+  3. Chọn: Connect to Git (kết nối GitHub để tự build khi có commit mới).
+
+  4. Cửa sổ Authorize Cloudflare Workers:
+     - Lần đầu: bấm Authorize cloudflare → đăng nhập GitHub nếu được hỏi.
+     - Chọn quyền truy cập repo:
+         + Khuyến nghị: "Only select repositories" → chọn repo site-password-vault
+         + Hoặc "All repositories" (ít an toàn hơn nhưng tiện khi test).
+     - Bấm Install & Authorize / Authorize.
+
+  5. Sau khi authorize, Cloudflare hiện danh sách repository GitHub của bạn.
+
+--------------------------------------------------------------------------------
+D3. CHỌN REPOSITORY VÀ NHÁNH (BRANCH)
+--------------------------------------------------------------------------------
+
+  1. Tìm và bấm chọn repository chứa code (vd: site-password-vault).
+  2. Bấm Begin setup (hoặc Next / Configure build).
+
+  3. Production branch (nhánh sản xuất):
+        • Nếu repo dùng Git mặc định mới: chọn  main
+        • Repo cũ có thể là  master
+     → Chọn đúng nhánh bạn đã upload code (thường là main).
+
+  4. Không tick "Create production branch" nếu bạn đã có code trên main.
+
+--------------------------------------------------------------------------------
+D4. CẤU HÌNH BUILD — TỪNG Ô NHẬP LIỆU (CỰC KỲ QUAN TRỌNG)
+--------------------------------------------------------------------------------
+
+  Màn hình "Set up builds and deployments" (hoặc "Build configuration").
+  Điền CHÍNH XÁC như bảng dưới. Sai một ô có thể build fail hoặc site trắng.
+
+  ┌──────────────────────────┬──────────────────────────────────────────────┐
+  │ Trường trên Cloudflare   │ Giá trị bạn nhập                             │
+  ├──────────────────────────┼──────────────────────────────────────────────┤
+  │ Project name             │ site-password-vault (hoặc tên bạn muốn)      │
+  │                          │ → URL sẽ là: https://<project-name>.pages.dev│
+  ├──────────────────────────┼──────────────────────────────────────────────┤
+  │ Production branch        │ main (hoặc master)                           │
+  ├──────────────────────────┼──────────────────────────────────────────────┤
+  │ Framework preset         │ None                                         │
+  │                          │ (Nếu chỉ có Next.js: có thể chọn Next.js,    │
+  │                          │  nhưng vẫn phải kiểm tra lại 2 ô dưới)       │
+  ├──────────────────────────┼──────────────────────────────────────────────┤
+  │ Build command            │ npm run build                                │
+  │                          │ (không có dấu ngoặc, không có cd ...)        │
+  ├──────────────────────────┼──────────────────────────────────────────────┤
+  │ Build output directory   │ out                                          │
+  │                          │ (chữ thường, KHÔNG viết /out hay ./out)      │
+  ├──────────────────────────┼──────────────────────────────────────────────┤
+  │ Root directory           │ (để TRỐNG)                                   │
+  │ (Path / Root path)       │ Chỉ điền nếu code nằm trong thư mục con,     │
+  │                          │ vd repo có cấu trúc /apps/web/package.json   │
+  │                          │ → khi đó ghi: apps/web                       │
+  └──────────────────────────┴──────────────────────────────────────────────┘
+
+  Giải thích ngắn:
+    • Build command: chạy script "build" trong package.json → Next.js xuất
+      static site vào thư mục out/ (do next.config.ts có output: 'export').
+    • Build output directory: Cloudflare chỉ đăng NỘI DUNG thư mục out/ lên CDN,
+      không đăng cả repo.
+
+  Các ô KHÁC (nếu thấy):
+    • Environment variables (Advanced): có thể bỏ qua ở bước này, làm ở D5.
+    • Build caching: bật mặc định — giữ nguyên.
+    • Deploy command: để trống (Pages không cần).
+
+  SAU KHI ĐIỀN XONG: chưa bấm Deploy ngay nếu màn hình cho phép thêm biến môi trường
+  ngay tại đây — làm D5 trước hoặc ngay sau lần deploy đầu (xem D5).
+
+--------------------------------------------------------------------------------
+D5. BIẾN MÔI TRƯỜNG (ENVIRONMENT VARIABLES) — SUPABASE
+--------------------------------------------------------------------------------
+
+  Biến NEXT_PUBLIC_* được nhúng vào code lúc BUILD (không phải lúc người dùng
+  mở trang). Thiếu biến → build vẫn có thể xong nhưng đăng nhập Supabase lỗi.
+
+  CÁCH THÊM TRƯỚC LẦN DEPLOY ĐẦU (nếu màn hình setup có mục Variables):
+    1. Mở "Environment variables" / "Add variable"
+    2. Thêm từng biến (xem bảng dưới)
+    3. Environment: chọn Production (và Preview nếu muốn test nhánh preview)
+
+  CÁCH THÊM SAU KHI ĐÃ TẠO PROJECT:
+    1. Workers & Pages → bấm TÊN project Pages của bạn
+    2. Tab Settings → Environment variables
+    3. Add variables
+
+  ┌───────────────────────────────┬─────────────────────────────────────────┐
+  │ Variable name (tên biến)      │ Value (giá trị)                         │
+  ├───────────────────────────────┼─────────────────────────────────────────┤
+  │ NEXT_PUBLIC_SUPABASE_URL      │ https://xxxxx.supabase.co               │
+  │                               │ (URL từ Supabase Settings → API)        │
+  ├───────────────────────────────┼─────────────────────────────────────────┤
+  │ NEXT_PUBLIC_SUPABASE_ANON_KEY │ eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9... │
+  │                               │ (anon public key, KHÔNG phải service)   │
+  └───────────────────────────────┴─────────────────────────────────────────┘
+
+  Lưu ý khi dán:
+    • Không thêm dấu ngoặc kép " " quanh URL (trừ khi Cloudflare tự thêm).
+    • Không có khoảng trắng đầu/cuối.
+    • URL phải có https://
+
+  Biến khuyến nghị thêm (tránh lỗi phiên bản Node):
+
+  ┌──────────────┬───────┬──────────────────────────────────────────────────┐
+  │ NODE_VERSION │  20   │ Dùng Node 20 LTS khi build                       │
+  └──────────────┴───────┴──────────────────────────────────────────────────┘
+
+  Environment nên chọn:
+    • Production  → bắt buộc (URL *.pages.dev chính thức)
+    • Preview     → nên tick cùng giá trị (deploy nhánh khác / PR)
+
+  SAU KHI SỬA BIẾN MÔI TRƯỜNG LẦN ĐẦU:
+    → Phải Redeploy (xem D9) vì Next.js nhúng NEXT_PUBLIC_* lúc build.
+
+--------------------------------------------------------------------------------
+D6. BẤM DEPLOY LẦN ĐẦU VÀ THEO DÕI BUILD LOG
+--------------------------------------------------------------------------------
+
+  1. Bấm Save and Deploy (hoặc Deploy site / Start setup).
+
+  2. Cloudflare chuyển sang trang Deployments. Trạng thái:
+        In progress / Building  → đang build
+        Success                 → thành công
+        Failed                  → thất bại (xem log)
+
+  3. Bấm vào dòng deployment đang chạy → xem Build log (nhật ký).
+
+  Trình tự log BÌNH THƯỜNG (tóm tắt):
+    Cloning repository...
+    Installing project dependencies: npm install
+    Executing user command: npm run build
+    ... next build ...
+    ... Compiled successfully
+    ... Exporting (out/)
+    Success: Build command completed
+    Deploying to Cloudflare's global network...
+    Success: Deployment ready
+
+  Thời gian: thường 2–6 phút (lần đầu có thể lâu hơn do npm install).
+
+  Nếu Failed: copy dòng lỗi đỏ cuối log → đối chiếu Phần G hoặc mục D10 bên dưới.
+
+--------------------------------------------------------------------------------
+D7. LẤY URL TRANG WEB VÀ KIỂM TRA NHANH
+--------------------------------------------------------------------------------
+
+  1. Sau Success, quay lại tab Overview của project Pages.
+  2. Mục Domains / Visit site:
+        https://<project-name>.pages.dev
+     Ví dụ project name "site-password-vault" →
+        https://site-password-vault.pages.dev
+
+  3. Đổi tên project (tùy chọn):
+     Settings → General → Project name → Save
+     → URL *.pages.dev đổi theo (link cũ có thể redirect).
+
+  4. Kiểm tra nhanh trên trình duyệt (ẩn danh càng tốt):
+     [ ] Trang chủ hiện form Đăng nhập / Đăng ký
+     [ ] Không báo "Chưa cấu hình Supabase" (nếu báo → D5 hoặc D9 chưa đúng)
+     [ ] Đăng ký email + mật khẩu → chuyển sang màn hình passcode
+     [ ] Tạo passcode → vào Vault
+     [ ] Thử refresh trang /vault (không bị 404) — cần file public/_redirects
+
+--------------------------------------------------------------------------------
+D8. CẤU HÌNH SUPABASE CHO URL CLOUDFLARE (BẮT BUỘC CHO AUTH)
+--------------------------------------------------------------------------------
+
+  Supabase chỉ chấp nhận redirect từ URL đã khai báo. Làm NGAY sau deploy đầu.
+
+  1. Supabase Dashboard → Authentication → URL Configuration
+
+  2. Site URL:
+        https://<project-name>.pages.dev
+     (URL chính xác trên thanh địa chỉ, có https, không dấu / cuối)
+
+  3. Redirect URLs — Add URL, thêm LẦN LƯỢT (nếu cần):
+        https://<project-name>.pages.dev/**
+        https://<project-name>.pages.dev
+     Một số phiên bản Supabase dùng wildcard ** cho path con.
+
+  4. Save
+
+  5. Nếu sau này gắn domain riêng (Phần E), thêm cả:
+        https://vault.tenmien.com
+        https://vault.tenmien.com/**
+
+  Không làm bước này: đăng nhập có thể lỗi, email magic link sai URL, session không lưu.
+
+--------------------------------------------------------------------------------
+D9. REDEPLOY SAU KHI ĐỔI BIẾN MÔI TRƯỜNG
+--------------------------------------------------------------------------------
+
+  Next.js nhúng NEXT_PUBLIC_* vào file JS lúc build. Sửa biến trên Cloudflare
+  mà không build lại → trang vẫn dùng giá trị cũ (hoặc rỗng).
+
+  Cách redeploy:
+    1. Vào project Pages → Deployments
+    2. Deployment mới nhất (hoặc bất kỳ bản Success) → ⋮ (ba chấm)
+    3. Retry deployment / Redeploy
+    HOẶC
+    1. Settings → Builds & deployments → Trigger deploy
+    HOẶC
+    Push một commit nhỏ lên GitHub (vd sửa README) → Cloudflare tự build lại.
+
+  Đợi Success → thử lại đăng nhập trên URL *.pages.dev.
+
+--------------------------------------------------------------------------------
+D10. CẤU HÌNH NÂNG CAO (TÙY CHỌN)
+--------------------------------------------------------------------------------
+
+  Build watch paths (Settings → Builds):
+    • Mặc định: build mỗi commit lên Production branch.
+    • Có thể giới hạn chỉ build khi đổi thư mục src/ (tiết kiệm build).
+
+  Preview deployments:
+    • Bật mặc định: mỗi Pull Request trên GitHub có URL preview riêng.
+    • Nhớ thêm biến NEXT_PUBLIC_* cho môi trường Preview (D5).
+
+  Compatibility flags / Functions:
+    • Dự án này là static export — KHÔNG bật Functions trừ khi bạn biết rõ.
+    • Không cần Workers KV / D1 cho app hiện tại.
+
+  _headers và _redirects:
+    • File public/_headers và public/_redirects được copy vào out/ khi build.
+    • Cloudflare Pages tự áp dụng — không cần cấu hình thêm trong Dashboard.
+
+--------------------------------------------------------------------------------
+D11. BẢNG ĐỐI CHIẾU LỖI RIÊNG PHẦN D
+--------------------------------------------------------------------------------
+
+  Triệu chứng                          | Nguyên nhân thường gặp          | Cách xử lý
+  -------------------------------------|----------------------------------|------------------
+  Build Failed ngay đầu                | Thiếu package.json trên GitHub   | Upload lại repo (Phần C)
+  "Cannot find module"                 | Thiếu dependency trong package   | Kiểm tra package.json có xlsx...
+  "Output directory 'out' not found"   | Build command sai / build lỗi    | Xem log trước dòng đó; đúng npm run build
+  Build OK nhưng site 404 mọi route    | Sai output dir (dist/.next)      | Chỉ dùng: out
+  Trang báo chưa cấu hình Supabase     | Thiếu env hoặc chưa redeploy      | D5 + D9
+  Đăng nhập quay vòng / lỗi CORS       | Sai URL/key hoặc Site URL Supabase| D5, D8
+  /vault refresh → 404                 | Thiếu _redirects                 | File public/_redirects trong repo
+  Build > 15 phút hoặc OOM             | Node cũ / project quá nặng       | NODE_VERSION=20
+
+--------------------------------------------------------------------------------
+D12. CHECKLIST HOÀN TẤT PHẦN D
+--------------------------------------------------------------------------------
+
+  [ ] Project Pages tạo xong, kết nối GitHub
+  [ ] Build command = npm run build
+  [ ] Build output directory = out
+  [ ] NEXT_PUBLIC_SUPABASE_URL và NEXT_PUBLIC_SUPABASE_ANON_KEY (Production)
+  [ ] NODE_VERSION = 20 (khuyến nghị)
+  [ ] Deployment trạng thái Success
+  [ ] Mở được https://<tên>.pages.dev
+  [ ] Supabase URL Configuration có Site URL trùng *.pages.dev
+  [ ] Đăng ký → passcode → vault hoạt động
+  [ ] Đã redeploy sau khi sửa biến môi trường (nếu sửa sau lần build đầu)
 
 ================================================================================
 PHẦN E — TÙY CHỈNH DOMAIN (không bắt buộc)
@@ -143,6 +414,20 @@ Lỗi: Không đăng nhập được Supabase
 Lỗi: Build hết bộ nhớ
    → Settings → NODE_VERSION=20
    → Hoặc tăng plan (thường free tier đủ cho Next static export)
+
+Lỗi: crypto.ts — Type 'Uint8Array' is not assignable to type 'BufferSource'
+   → Upload lại src/lib/crypto.ts (đã dùng copyU8 cho Web Crypto).
+   → Upload src/lib/importExport.ts nếu còn cảnh báo WorkSheet.
+
+Lỗi: globals.css — "hover:border-vault-accent/40 class does not exist"
+   → Màu Tailwind custom phải dùng biến RGB (vd: 59 130 246), không dùng #hex.
+   → Upload lại: src/app/globals.css, tailwind.config.ts → Redeploy.
+
+Lỗi: argon2.wasm — "Module not found: Can't resolve 'a'"
+   → Thư viện argon2-browser không build được trên Cloudflare/Next.js.
+   → Bản code mới đã bỏ argon2, chỉ dùng PBKDF2 (Web Crypto).
+   → Upload lại lên GitHub: src/lib/crypto.ts, package.json, next.config.ts
+     (xóa argon2-browser khỏi dependencies) → Redeploy.
 
 ================================================================================
 PHẦN H — IMPORT MẬT KHẨU TỪ GOOGLE (dùng trên trang đã deploy)
