@@ -2,20 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --vault-bg: #0f1419;
-  --vault-surface: #1a2332;
-  --vault-border: #2d3a4f;
-  --vault-accent: #3b82f6;
-  --vault-muted: #94a3b8;
+/* RGB triplets (không dùng #) để Tailwind hỗ trợ opacity: bg-vault-accent/20 */
+:root,
+html.dark {
+  --vault-bg: 15 20 25;
+  --vault-surface: 26 35 50;
+  --vault-border: 45 58 79;
+  --vault-accent: 59 130 246;
+  --vault-muted: 148 163 184;
 }
 
 html:not(.dark) {
-  --vault-bg: #f1f5f9;
-  --vault-surface: #ffffff;
-  --vault-border: #e2e8f0;
-  --vault-accent: #2563eb;
-  --vault-muted: #64748b;
+  --vault-bg: 241 245 249;
+  --vault-surface: 255 255 255;
+  --vault-border: 226 232 240;
+  --vault-accent: 37 99 235;
+  --vault-muted: 100 116 139;
 }
 
 html.dark {
