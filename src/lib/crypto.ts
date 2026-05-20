@@ -20,9 +20,15 @@ function fromBase64(base64: string): Uint8Array {
   return bytes;
 }
 
-/** Copy bytes so Web Crypto gets ArrayBuffer-backed views (TS 5+ strict). */
-function copyU8(bytes: Uint8Array): Uint8Array {
-  return new Uint8Array(bytes);
+/** Tạo ArrayBuffer tách biệt — tương thích TS strict + Node 22 trên CI. */
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const out = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(out).set(bytes);
+  return out;
+}
+
+function toCryptoU8(bytes: Uint8Array): Uint8Array<ArrayBuffer> {
+  return new Uint8Array(toArrayBuffer(bytes));
 }
 
 export function generateSalt(): Uint8Array {
@@ -34,7 +40,7 @@ export function generateSalt(): Uint8Array {
 async function importAesKey(rawKey: Uint8Array): Promise<CryptoKey> {
   return crypto.subtle.importKey(
     "raw",
-    copyU8(rawKey),
+    toArrayBuffer(rawKey),
     { name: "AES-GCM", length: 256 },
     false,
     ["encrypt", "decrypt"]
@@ -59,7 +65,7 @@ export async function deriveKey(
   const bits = await crypto.subtle.deriveBits(
     {
       name: "PBKDF2",
-      salt: copyU8(salt),
+      salt: toArrayBuffer(salt),
       iterations: PBKDF2_ITERATIONS,
       hash: "SHA-256",
     },
@@ -77,7 +83,7 @@ export async function encrypt<T>(
   crypto.getRandomValues(iv);
   const encoded = new TextEncoder().encode(JSON.stringify(plainObj));
   const cipherBuffer = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv },
+    { name: "AES-GCM", iv: toCryptoU8(iv) },
     key,
     encoded
   );
@@ -92,8 +98,8 @@ export async function decrypt<T>(
   ivBase64: string,
   key: CryptoKey
 ): Promise<T> {
-  const ciphertext = copyU8(fromBase64(ciphertextBase64));
-  const iv = copyU8(fromBase64(ivBase64));
+  const ciphertext = toCryptoU8(fromBase64(ciphertextBase64));
+  const iv = toCryptoU8(fromBase64(ivBase64));
   const plainBuffer = await crypto.subtle.decrypt(
     { name: "AES-GCM", iv },
     key,
