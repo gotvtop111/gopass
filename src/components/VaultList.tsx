@@ -11,6 +11,7 @@ import { VaultItemForm } from "@/components/VaultItemForm";
 import { VaultToolbar } from "@/components/VaultToolbar";
 import { VaultVirtualFlat } from "@/components/VaultVirtualFlat";
 import { VaultGroupedView } from "@/components/VaultGroupedView";
+import { PasscodeCopyModal } from "@/components/PasscodeCopyModal";
 import { useVaultStore } from "@/store/useVaultStore";
 import {
   deleteVaultItem,
@@ -31,6 +32,7 @@ interface VaultListProps {
 
 export function VaultList({ userId }: VaultListProps) {
   const items = useVaultStore((s) => s.items);
+  const profile = useVaultStore((s) => s.profile);
   const encryptionKey = useVaultStore((s) => s.encryptionKey);
   const addItem = useVaultStore((s) => s.addItem);
   const updateItemStore = useVaultStore((s) => s.updateItem);
@@ -47,6 +49,7 @@ export function VaultList({ userId }: VaultListProps) {
   const [editing, setEditing] = useState<PasswordItem | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [copyTarget, setCopyTarget] = useState<PasswordItem | null>(null);
 
   const filtered = useMemo(() => {
     let list = filterByQuery(items, deferredSearch);
@@ -190,6 +193,7 @@ export function VaultList({ userId }: VaultListProps) {
               setModalOpen(true);
             }}
             onDelete={handleDeleteOne}
+            onRequestCopy={setCopyTarget}
           />
         ) : (
           <VaultGroupedView
@@ -201,9 +205,20 @@ export function VaultList({ userId }: VaultListProps) {
               setModalOpen(true);
             }}
             onDelete={handleDeleteOne}
+            onRequestCopy={setCopyTarget}
           />
         )}
       </section>
+
+      {profile && copyTarget && (
+        <PasscodeCopyModal
+          open
+          onClose={() => setCopyTarget(null)}
+          profile={profile}
+          passwordToCopy={copyTarget.password}
+          itemLabel={copyTarget.name}
+        />
+      )}
 
       <VaultItemForm
         open={modalOpen}

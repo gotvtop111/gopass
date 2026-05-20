@@ -13,6 +13,7 @@ interface VaultVirtualFlatProps {
   onToggleSelect: (id: string) => void;
   onEdit: (item: PasswordItem) => void;
   onDelete: (id: string) => void;
+  onRequestCopy: (item: PasswordItem) => void;
 }
 
 export function VaultVirtualFlat({
@@ -21,6 +22,7 @@ export function VaultVirtualFlat({
   onToggleSelect,
   onEdit,
   onDelete,
+  onRequestCopy,
 }: VaultVirtualFlatProps) {
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -42,7 +44,7 @@ export function VaultVirtualFlat({
   return (
     <div
       ref={parentRef}
-      className="max-h-[min(70vh,720px)] overflow-auto rounded-xl border border-vault-border bg-vault-surface/40"
+      className="max-h-[min(55dvh,480px)] overflow-auto rounded-xl border border-vault-border bg-vault-surface/40 sm:max-h-[min(70vh,720px)]"
       role="list"
       aria-label="Danh sách tài khoản"
     >
@@ -68,6 +70,7 @@ export function VaultVirtualFlat({
                 onToggleSelect={onToggleSelect}
                 onEdit={onEdit}
                 onDelete={onDelete}
+                onRequestCopy={onRequestCopy}
                 showHost
               />
             </div>

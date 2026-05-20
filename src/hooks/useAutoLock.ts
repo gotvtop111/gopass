@@ -1,20 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { useVaultStore } from "@/store/useVaultStore";
+import { useFullLogout } from "@/hooks/useFullLogout";
 
 const IDLE_MS = 5 * 60 * 1000;
 
+/** Khóa / thoát tab / idle → đăng xuất hoàn toàn (phải đăng nhập lại) */
 export function useAutoLock(enabled: boolean) {
-  const router = useRouter();
-  const clearVault = useVaultStore((s) => s.clearVault);
+  const fullLogout = useFullLogout();
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const lock = useCallback(() => {
-    clearVault();
-    router.replace("/");
-  }, [clearVault, router]);
+    void fullLogout();
+  }, [fullLogout]);
 
   const resetTimer = useCallback(() => {
     if (!enabled) return;
@@ -26,17 +24,23 @@ export function useAutoLock(enabled: boolean) {
     if (!enabled) return;
 
     const events = ["mousedown", "keydown", "touchstart", "scroll"] as const;
-    events.forEach((e) => window.addEventListener(e, resetTimer, { passive: true }));
+    events.forEach((e) =>
+      window.addEventListener(e, resetTimer, { passive: true })
+    );
 
     const onVisibility = () => {
       if (document.hidden) lock();
     };
+    const onPageHide = () => lock();
+
     document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", onPageHide);
     resetTimer();
 
     return () => {
       events.forEach((e) => window.removeEventListener(e, resetTimer));
       document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", onPageHide);
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, [enabled, lock, resetTimer]);

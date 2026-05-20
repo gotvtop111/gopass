@@ -25,7 +25,11 @@ html.dark {
 }
 
 body {
-  @apply min-h-screen bg-vault-bg text-vault-muted antialiased;
+  @apply min-h-dvh bg-vault-bg text-vault-muted antialiased;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
 }
 
 @layer components {

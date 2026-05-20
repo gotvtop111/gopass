@@ -4,17 +4,33 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { AppHeader } from "@/components/AppHeader";
-import { ImportExportPanel } from "@/components/ImportExportPanel";
+import { VaultImportCollapsible } from "@/components/VaultImportCollapsible";
 import { VaultList } from "@/components/VaultList";
 import { useVaultStore } from "@/store/useVaultStore";
 import { useAutoLock } from "@/hooks/useAutoLock";
+import { useFullLogout } from "@/hooks/useFullLogout";
 
 export default function VaultPage() {
   const router = useRouter();
   const isUnlocked = useVaultStore((s) => s.isUnlocked);
+  const fullLogout = useFullLogout();
   const [userId, setUserId] = useState<string | null>(null);
 
   useAutoLock(isUnlocked);
+
+  useEffect(() => {
+    if (!isUnlocked) return;
+    const onHide = () => {
+      void fullLogout();
+    };
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) onHide();
+    });
+    window.addEventListener("pagehide", onHide);
+    return () => {
+      window.removeEventListener("pagehide", onHide);
+    };
+  }, [isUnlocked, fullLogout]);
 
   useEffect(() => {
     if (!isUnlocked) {
@@ -33,31 +49,30 @@ export default function VaultPage() {
 
   if (!isUnlocked || !userId) {
     return (
-      <main className="flex min-h-screen items-center justify-center">
+      <main className="flex min-h-dvh items-center justify-center px-4">
         <p className="text-vault-muted">Đang tải vault...</p>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto min-h-screen max-w-7xl px-4 py-8">
+    <main className="mx-auto flex min-h-0 w-full max-w-7xl flex-col px-3 py-4 sm:px-4 sm:py-6">
       <AppHeader />
 
-      <div className="mt-6 flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-8">
+      <div className="mt-4 flex min-h-0 flex-1 flex-col gap-5 lg:mt-6 lg:flex-row lg:items-start lg:gap-8">
         <section
-          className="shrink-0 lg:w-[min(100%,20rem)]"
+          className="w-full shrink-0 lg:w-[min(100%,20rem)]"
           aria-labelledby="vault-io-title"
         >
           <h2 id="vault-io-title" className="sr-only">
             Nhập và xuất dữ liệu
           </h2>
-          <ImportExportPanel
-            userId={userId}
-          className="mb-6 lg:mb-0 lg:sticky lg:top-4 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto"
-          />
+          <VaultImportCollapsible userId={userId} />
         </section>
 
-        <VaultList userId={userId} />
+        <div className="min-h-0 min-w-0 flex-1">
+          <VaultList userId={userId} />
+        </div>
       </div>
     </main>
   );

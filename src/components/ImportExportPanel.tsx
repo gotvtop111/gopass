@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useVaultStore } from "@/store/useVaultStore";
-import { insertVaultItem } from "@/lib/vaultService";
+import { insertVaultItemsBulk } from "@/lib/vaultBulk";
 import {
   parseImportFile,
   exportToCsv,
@@ -34,7 +34,7 @@ export function ImportExportPanel({
 }: ImportExportPanelProps) {
   const items = useVaultStore((s) => s.items);
   const encryptionKey = useVaultStore((s) => s.encryptionKey);
-  const addItem = useVaultStore((s) => s.addItem);
+  const addItems = useVaultStore((s) => s.addItems);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -44,6 +44,7 @@ export function ImportExportPanel({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [progressLabel, setProgressLabel] = useState("");
 
   const handleExportCsv = async (googleFormat: boolean) => {
     if (!items.length) {
@@ -79,6 +80,7 @@ export function ImportExportPanel({
 
     setError("");
     setMessage("");
+    setProgressLabel("");
 
     try {
       const { rows, format, fileName } = await parseImportFile(file);
@@ -100,27 +102,39 @@ export function ImportExportPanel({
 
     setBusy(true);
     setError("");
-    let imported = 0;
-    let failed = 0;
+    setProgressLabel("Đang mã hóa…");
 
     try {
-      for (const row of pendingRows) {
-        try {
-          const created = await insertVaultItem(userId, row, encryptionKey);
-          addItem(created);
-          imported++;
-        } catch {
-          failed++;
+      const { created, failedEncrypt, failedInsert } = await insertVaultItemsBulk(
+        userId,
+        pendingRows,
+        encryptionKey,
+        {
+          onProgress: (phase, done, total) => {
+            if (phase === "encrypt") {
+              setProgressLabel(`Mã hóa: ${done} / ${total}`);
+            } else {
+              setProgressLabel(`Tải lên Supabase: ${done} / ${total}`);
+            }
+          },
         }
+      );
+
+      if (created.length > 0) {
+        addItems(created);
       }
+
       setPreviewOpen(false);
       setPendingRows([]);
-      setMessage(
-        `Import xong: ${imported} mục thành công` +
-          (failed ? `, ${failed} mục lỗi.` : ".")
-      );
+      setProgressLabel("");
+
+      const parts = [`Import xong: ${created.length} mục`];
+      if (failedEncrypt) parts.push(`${failedEncrypt} mã hóa lỗi`);
+      if (failedInsert) parts.push(`${failedInsert} lưu lỗi`);
+      setMessage(parts.join(" · ") + ".");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Import thất bại");
+      setProgressLabel("");
     } finally {
       setBusy(false);
     }
@@ -228,18 +242,24 @@ export function ImportExportPanel({
 
         <PreviewTable rows={pendingRows.slice(0, 8)} total={pendingRows.length} />
 
-        <div className="mt-4 flex gap-2">
+        {busy && progressLabel && (
+          <p className="mt-3 text-center text-xs text-vault-accent">
+            {progressLabel}
+          </p>
+        )}
+
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
           <button
             type="button"
             className="btn-primary flex-1"
             disabled={busy}
             onClick={handleConfirmImport}
           >
-            {busy ? "Đang import..." : "Import vào vault"}
+            {busy ? "Đang import…" : "Import vào vault"}
           </button>
           <button
             type="button"
-            className="btn-ghost"
+            className="btn-ghost sm:shrink-0"
             disabled={busy}
             onClick={() => setPreviewOpen(false)}
           >
@@ -259,7 +279,7 @@ function PreviewTable({
   total: number;
 }) {
   return (
-    <div className="max-h-48 overflow-auto rounded-lg border border-vault-border">
+    <div className="max-h-[min(40dvh,12rem)] overflow-auto rounded-lg border border-vault-border sm:max-h-48">
       <table className="w-full text-left text-xs">
         <thead className="sticky top-0 bg-vault-bg">
           <tr className="text-vault-muted">

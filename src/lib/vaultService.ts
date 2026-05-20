@@ -1,31 +1,8 @@
 import { supabase } from "@/lib/supabaseClient";
 import { decrypt, encrypt } from "@/lib/crypto";
-import type { PasswordItem, ProfileRow, VaultRow } from "@/types";
+import type { PasswordItem, VaultRow } from "@/types";
 
-export async function fetchProfile(userId: string): Promise<ProfileRow | null> {
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", userId)
-    .maybeSingle();
-  if (error) throw error;
-  return data as ProfileRow | null;
-}
-
-export async function createProfile(
-  userId: string,
-  salt: string,
-  encryptedVerification: string,
-  verificationIv: string
-): Promise<void> {
-  const { error } = await supabase.from("profiles").insert({
-    id: userId,
-    salt,
-    encrypted_verification: encryptedVerification,
-    verification_iv: verificationIv,
-  });
-  if (error) throw error;
-}
+export { fetchProfile } from "@/lib/profileAuth";
 
 export async function loadVaultItems(
   userId: string,

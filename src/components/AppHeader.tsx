@@ -1,35 +1,23 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
-import { useVaultStore } from "@/store/useVaultStore";
 import { useTheme } from "@/hooks/useTheme";
+import { useFullLogout } from "@/hooks/useFullLogout";
 
 export function AppHeader() {
-  const router = useRouter();
-  const clearVault = useVaultStore((s) => s.clearVault);
+  const fullLogout = useFullLogout();
   const { dark, toggle } = useTheme();
 
-  const handleLock = () => {
-    clearVault();
-    router.replace("/unlock");
-  };
-
-  const handleLogout = async () => {
-    clearVault();
-    await supabase.auth.signOut();
-    router.replace("/");
-  };
-
   return (
-    <header className="mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-vault-border pb-4">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-white">
+    <header className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-vault-border pb-4 sm:mb-8">
+      <div className="min-w-0">
+        <h1 className="text-xl font-bold tracking-tight text-white sm:text-2xl">
           Site Password
         </h1>
-        <p className="text-sm text-vault-muted">Zero-knowledge vault</p>
+        <p className="text-xs text-vault-muted sm:text-sm">
+          Zero-knowledge vault
+        </p>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
         <button
           type="button"
           onClick={toggle}
@@ -38,11 +26,13 @@ export function AppHeader() {
         >
           {dark ? "☀️" : "🌙"}
         </button>
-        <button type="button" onClick={handleLock} className="btn-ghost">
-          Khóa
-        </button>
-        <button type="button" onClick={handleLogout} className="btn-ghost">
-          Đăng xuất
+        <button
+          type="button"
+          onClick={() => fullLogout()}
+          className="btn-ghost"
+          title="Đăng xuất — lần sau nhập lại username và mật khẩu"
+        >
+          Khóa &amp; thoát
         </button>
       </div>
     </header>

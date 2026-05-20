@@ -13,6 +13,7 @@ interface VaultGroupedViewProps {
   onToggleSelect: (id: string) => void;
   onEdit: (item: PasswordItem) => void;
   onDelete: (id: string) => void;
+  onRequestCopy: (item: PasswordItem) => void;
 }
 
 function faviconForHost(host: string): string | null {
@@ -26,6 +27,7 @@ export function VaultGroupedView({
   onToggleSelect,
   onEdit,
   onDelete,
+  onRequestCopy,
 }: VaultGroupedViewProps) {
   const groups = useMemo(() => groupByHost(items), [items]);
   const [visibleSites, setVisibleSites] = useState(SITE_PAGE);
@@ -77,7 +79,7 @@ export function VaultGroupedView({
               </div>
             </summary>
             <div className="border-t border-vault-border/60 px-1 pb-2 pt-0">
-              <div className="max-h-[min(50vh,420px)] overflow-y-auto">
+              <div className="max-h-[min(45dvh,380px)] overflow-y-auto sm:max-h-[min(50vh,420px)]">
                 {g.items.map((item) => (
                   <VaultRow
                     key={item.id}
@@ -86,6 +88,7 @@ export function VaultGroupedView({
                     onToggleSelect={onToggleSelect}
                     onEdit={onEdit}
                     onDelete={onDelete}
+                    onRequestCopy={onRequestCopy}
                     showHost={false}
                   />
                 ))}

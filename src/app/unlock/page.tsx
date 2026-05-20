@@ -5,10 +5,12 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { PasscodeGate } from "@/components/PasscodeGate";
 import { useVaultStore } from "@/store/useVaultStore";
+import { useFullLogout } from "@/hooks/useFullLogout";
 
 export default function UnlockPage() {
   const router = useRouter();
   const isUnlocked = useVaultStore((s) => s.isUnlocked);
+  const fullLogout = useFullLogout();
   const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -26,16 +28,29 @@ export default function UnlockPage() {
     });
   }, [router, isUnlocked]);
 
+  useEffect(() => {
+    const onHide = () => {
+      void fullLogout();
+    };
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) onHide();
+    });
+    window.addEventListener("pagehide", onHide);
+    return () => {
+      window.removeEventListener("pagehide", onHide);
+    };
+  }, [fullLogout]);
+
   if (!userId) {
     return (
-      <main className="flex min-h-screen items-center justify-center">
+      <main className="flex min-h-dvh items-center justify-center px-4">
         <p className="text-vault-muted">Đang tải...</p>
       </main>
     );
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center px-4 py-12">
+    <main className="flex min-h-dvh flex-col items-center justify-center px-4 py-8">
       <PasscodeGate userId={userId} />
     </main>
   );
