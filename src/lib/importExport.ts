@@ -1,5 +1,4 @@
 import type { PasswordItem } from "@/types";
-import type { WorkSheet } from "xlsx";
 
 export type VaultImportRow = Omit<
   PasswordItem,
