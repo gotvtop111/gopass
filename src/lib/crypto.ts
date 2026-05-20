@@ -39,47 +39,35 @@ async function importAesKey(rawKey: Uint8Array): Promise<CryptoKey> {
   );
 }
 
-/** Argon2id (preferred) with PBKDF2 fallback for environments where WASM fails */
+/** PBKDF2-SHA256 (Web Crypto) — tương thích static export / Cloudflare Pages */
+const PBKDF2_ITERATIONS = 600_000;
+
 export async function deriveKey(
   passcode: string,
   salt: Uint8Array
 ): Promise<CryptoKey> {
-  try {
-    const argon2 = (await import("argon2-browser")).default;
-    const result = await argon2.hash({
-      pass: passcode,
-      salt,
-      type: argon2.ArgonType.Argon2id,
-      hashLen: 32,
-      time: 1,
-      mem: 47104,
-      parallelism: 1,
-    });
-    return importAesKey(new Uint8Array(result.hash));
-  } catch {
-    const encoder = new TextEncoder();
-    const keyMaterial = await crypto.subtle.importKey(
-      "raw",
-      encoder.encode(passcode),
-      "PBKDF2",
-      false,
-      ["deriveBits"]
-    );
-    const bits = await crypto.subtle.deriveBits(
-      {
-        name: "PBKDF2",
-        salt: salt.buffer.slice(
-          salt.byteOffset,
-          salt.byteOffset + salt.byteLength
-        ) as ArrayBuffer,
-        iterations: 310000,
-        hash: "SHA-256",
-      },
-      keyMaterial,
-      256
-    );
-    return importAesKey(new Uint8Array(bits));
-  }
+  const encoder = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(passcode),
+    "PBKDF2",
+    false,
+    ["deriveBits"]
+  );
+  const bits = await crypto.subtle.deriveBits(
+    {
+      name: "PBKDF2",
+      salt: salt.buffer.slice(
+        salt.byteOffset,
+        salt.byteOffset + salt.byteLength
+      ) as ArrayBuffer,
+      iterations: PBKDF2_ITERATIONS,
+      hash: "SHA-256",
+    },
+    keyMaterial,
+    256
+  );
+  return importAesKey(new Uint8Array(bits));
 }
 
 export async function encrypt<T>(
