@@ -15,10 +15,6 @@ const nextConfig: NextConfig = {
   output: "export",
   trailingSlash: false,
   images: { unoptimized: true },
-  webpack: (config) => {
-    config.experiments = { ...config.experiments, asyncWebAssembly: true };
-    return config;
-  },
 };
 
 export default withPWA(nextConfig);
