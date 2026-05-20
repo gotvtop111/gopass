@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --vault-bg: #0f1419;
+  --vault-surface: #1a2332;
+  --vault-border: #2d3a4f;
+  --vault-accent: #3b82f6;
+  --vault-muted: #94a3b8;
+}
+
+html:not(.dark) {
+  --vault-bg: #f1f5f9;
+  --vault-surface: #ffffff;
+  --vault-border: #e2e8f0;
+  --vault-accent: #2563eb;
+  --vault-muted: #64748b;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+body {
+  @apply min-h-screen bg-vault-bg text-vault-muted antialiased;
+}
+
+@layer components {
+  .input-field {
+    @apply w-full rounded-xl border border-vault-border bg-vault-bg px-4 py-2.5 text-sm text-white outline-none transition focus:border-vault-accent focus:ring-1 focus:ring-vault-accent;
+  }
+
+  html:not(.dark) .input-field {
+    @apply text-slate-900;
+  }
+
+  .btn-primary {
+    @apply rounded-xl bg-vault-accent px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50;
+  }
+
+  .btn-ghost {
+    @apply rounded-xl border border-vault-border px-3 py-2 text-sm text-vault-muted transition hover:border-vault-accent hover:text-white;
+  }
+
+  .card {
+    @apply rounded-2xl border border-vault-border bg-vault-surface p-4 shadow-lg transition hover:border-vault-accent/40;
+  }
+}

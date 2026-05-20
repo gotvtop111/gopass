@@ -1,0 +1,252 @@
+text
+================================================================================
+   TÀI LIỆU TỔNG HỢP - ỨNG DỤNG WEB QUẢN LÝ MẬT KHẨU ZERO-KNOWLEDGE
+   (Triển khai trên Cloudflare Pages, Supabase, Next.js static export)
+================================================================================
+
+MỤC LỤC
+1.  Yêu cầu ban đầu
+2.  Kiến trúc tổng thể & Zero-Knowledge
+3.  Công nghệ sử dụng
+4.  So sánh nền tảng triển khai (Cloudflare Pages vs Vercel vs Netlify)
+5.  Hướng dẫn chi tiết xây dựng (dành cho Cursor)
+6.  Cấu trúc thư mục
+7.  Thiết lập Supabase
+8.  Logic chính (Crypto, Store, Auth, Passcode, Vault, Auto-lock)
+9.  Giao diện người dùng
+10. Triển khai Cloudflare Pages & PWA
+11. Lưu ý bảo mật
+================================================================================
+
+1. YÊU CẦU BAN ĐẦU
+   - Tạo web quản lý mật khẩu.
+   - Có đăng nhập (email/password) và một lớp passcode bảo vệ két.
+   - Sử dụng Supabase làm database.
+   - Thuận tiện lưu trữ, tìm kiếm, quản lý, sao chép.
+   - Giao diện hiện đại, dễ truy cập.
+   - Triển khai trên Cloudflare Pages (sau khi so sánh với Vercel, Netlify).
+
+2. KIẾN TRÚC TỔNG THỂ & ZERO-KNOWLEDGE
+   - Mô hình zero-knowledge: mọi dữ liệu nhạy cảm được mã hóa phía client trước khi gửi lên server.
+     Supabase chỉ lưu ciphertext, không thể đọc được dữ liệu thô.
+   - Hai lớp bảo vệ:
+       a) Đăng nhập Supabase Auth (email + mật khẩu) -> lấy JWT, truy cập database qua RLS.
+       b) Passcode (mã PIN/master password) -> derive khóa mã hóa AES-256, mở khóa vault.
+   - Luồng hoạt động:
+       Đăng ký -> tạo passcode -> sinh salt + mã hóa verification -> lưu profiles.
+       Đăng nhập -> xác thực email/password -> nhập passcode -> derive key -> giải mã verification
+                 -> nếu đúng, lấy toàn bộ vault ciphertext -> giải mã -> hiển thị, thao tác.
+                 -> thêm/sửa/xóa: mã hóa lại dữ liệu trước khi gửi lên Supabase.
+       Tự động khóa sau thời gian idle -> xóa key khỏi bộ nhớ.
+
+3. CÔNG NGHỆ SỬ DỤNG
+   - Frontend: Next.js (với output: 'export' để tạo static site) + TypeScript.
+   - Styling: Tailwind CSS (dark mode).
+   - State Management: Zustand (lưu encryption key và danh sách đã giải mã trong memory).
+   - Crypto: Argon2id (argon2-browser) để derive key; Web Crypto API (PBKDF2 fallback, AES-GCM).
+   - Authentication & Database: Supabase (Auth + PostgreSQL + RLS).
+   - PWA: next-pwa (Service Worker, manifest).
+   - Deployment: Cloudflare Pages (CDN toàn cầu, băng thông không giới hạn, miễn phí).
+
+4. SO SÁNH NỀN TẢNG TRIỂN KHAI
+   Cloudflare Pages vs Vercel vs Netlify:
+   - Cloudflare Pages: Băng thông không giới hạn, hỗ trợ static export tốt, CDN cực nhanh, cho phép thương mại.
+   - Vercel (Hobby): Giới hạn 100 GB/tháng, cấm thương mại, tối ưu cho SSR/ISR (ta không cần).
+   - Netlify: Giới hạn 100 GB/tháng, hỗ trợ tốt static, cho phép thương mại nhưng CDN ít điểm hơn.
+   => Chọn Cloudflare Pages vì phù hợp nhất với mô hình tĩnh, băng thông thoải mái, chi phí = 0.
+
+5. HƯỚNG DẪN CHI TIẾT XÂY DỰNG (DÀNH CHO CURSOR)
+   Dưới đây là các bước cụ thể để Cursor (hoặc lập trình viên) tuần tự thực hiện:
+
+   Bước 1: Khởi tạo dự án Next.js
+     npx create-next-app@latest passmanager --typescript
+     cd passmanager
+     npm install @supabase/supabase-js argon2-browser zustand
+     npm install -D tailwindcss postcss autoprefixer next-pwa
+     npx tailwindcss init -p
+
+   Bước 2: Cấu hình next.config.js
+     const withPWA = require('next-pwa')({
+       dest: 'public',
+       disable: process.env.NODE_ENV === 'development',
+       runtimeCaching: [],
+     });
+     module.exports = withPWA({
+       output: 'export',   // Xuất HTML tĩnh
+       trailingSlash: false,
+     });
+
+   Bước 3: Cấu hình Tailwind
+     // tailwind.config.js
+     module.exports = {
+       darkMode: 'class',
+       content: ['./src/**/*.{ts,tsx}'],
+       theme: { extend: {} },
+       plugins: [],
+     };
+
+   Bước 4: Biến môi trường
+     Tạo .env.local:
+       NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
+       NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOi...
+
+   Bước 5: Tạo Supabase client (src/lib/supabaseClient.ts)
+     import { createClient } from '@supabase/supabase-js';
+     export const supabase = createClient(
+       process.env.NEXT_PUBLIC_SUPABASE_URL!,
+       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+     );
+
+   Bước 6: Xây dựng module Crypto (src/lib/crypto.ts)
+     - deriveKey(passcode, salt): dùng argon2-browser (Argon2id, memory 46MB, 1 iteration, 1 parallelism)
+       trả về Uint8Array (hoặc CryptoKey).
+     - encrypt(plainObj, key): tạo IV ngẫu nhiên (12 bytes), mã hóa JSON.stringify(plainObj) bằng AES-GCM,
+       trả về { ciphertext: base64, iv: base64 }.
+     - decrypt(ciphertextBase64, ivBase64, key): giải mã và parse JSON.
+     - verifyPasscode(passcode, salt, encryptedVerification): deriveKey, thử decrypt verification, so sánh với "ok".
+
+   Bước 7: Tạo Zustand store (src/store/useVaultStore.ts)
+     - State: encryptionKey (CryptoKey | null), items (mảng PasswordItem).
+     - Actions: setEncryptionKey, setItems, addItem, updateItem, removeItem, clearVault.
+
+   Bước 8: Auth flow
+     - Trang chủ (/) hiển thị form đăng nhập/đăng ký bằng supabase.auth.signUp/signIn.
+     - Sau khi có session, redirect tới /unlock (màn hình nhập passcode).
+
+   Bước 9: Màn hình Passcode (PasscodeGate)
+     - Nếu user chưa có profile (đăng ký mới), yêu cầu tạo passcode:
+         + Sinh salt ngẫu nhiên, derive key.
+         + Mã hóa verification "ok" -> lưu salt, encrypted_verification vào bảng profiles.
+     - Nếu đã có profile: lấy salt và encrypted_verification, yêu cầu nhập passcode.
+         + Derive key, verify.
+         + Nếu đúng, lưu key vào store, fetch tất cả vault items (đã mã hóa) -> giải mã từng cái -> set items.
+         + Nếu sai, báo lỗi, đếm số lần thử (giới hạn client, sau 5 lần buộc đăng xuất).
+     - Sau khi mở khóa thành công, redirect sang /vault.
+
+   Bước 10: Trang Vault chính
+     - Hiển thị danh sách items dạng card.
+     - Tìm kiếm real-time client-side (lọc theo name, url, username).
+     - Nút copy password: sử dụng navigator.clipboard.writeText, kèm timeout 30s xóa clipboard (tùy chọn).
+     - Thêm mới: modal với form name, url, username, password, notes; có nút Generate password.
+     - Sửa: click card mở modal điền sẵn, cập nhật.
+     - Xóa: confirm, xóa khỏi store + gọi Supabase delete.
+     - Mỗi thay đổi: mã hóa object -> gọi Supabase tương ứng (insert/update/delete).
+
+   Bước 11: Sinh mật khẩu
+     - Component PasswordGenerator: cho phép chọn độ dài, loại ký tự, dùng crypto.getRandomValues.
+
+   Bước 12: Tự động khóa (Auto-lock)
+     - Hook useAutoLock: lắng nghe sự kiện chuột/bàn phím/scroll, nếu không hoạt động 5 phút thì xóa key và redirect về /.
+     - Kết hợp visibilitychange để khóa khi tab ẩn đi nếu muốn.
+
+   Bước 13: Giao diện
+     - Tailwind CSS responsive, dark mode.
+     - Layout chính: header (tên app, toggle dark mode, nút Lock).
+     - Vault dạng lưới: grid-cols-1 sm:grid-cols-2 lg:grid-cols-3.
+     - Modal sử dụng thẻ <dialog> hoặc tự build.
+
+   Bước 14: Cấu hình PWA
+     - public/manifest.json (tên, icon, display: standalone, theme color).
+     - next-pwa tự tạo service worker.
+
+   Bước 15: Triển khai Cloudflare Pages
+     - Tạo file public/_headers:
+         /*
+           Content-Security-Policy: default-src 'self'; script-src 'self'; connect-src 'self' https://*.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self';
+           X-Content-Type-Options: nosniff
+           X-Frame-Options: DENY
+           Referrer-Policy: strict-origin-when-cross-origin
+           Permissions-Policy: clipboard-write=(self)
+     - Tạo file public/_redirects (nếu cần fallback SPA): /*  /index.html  200
+     - Build command: npm run build
+     - Output directory: out
+     - Đặt biến môi trường NEXT_PUBLIC_SUPABASE_URL và NEXT_PUBLIC_SUPABASE_ANON_KEY trong Cloudflare Pages dashboard.
+
+6. CẤU TRÚC THƯ MỤC (GỢI Ý)
+   /
+   ├── public/
+   │   ├── manifest.json
+   │   ├── icons/
+   │   ├── _headers
+   │   └── _redirects
+   ├── src/
+   │   ├── app/                   (App Router)
+   │   │   ├── layout.tsx
+   │   │   ├── page.tsx           (login)
+   │   │   ├── unlock/
+   │   │   │   └── page.tsx       (passcode)
+   │   │   └── vault/
+   │   │       └── page.tsx       (main vault)
+   │   ├── components/
+   │   │   ├── LoginForm.tsx
+   │   │   ├── PasscodeGate.tsx
+   │   │   ├── VaultList.tsx
+   │   │   ├── VaultCard.tsx
+   │   │   ├── PasswordGenerator.tsx
+   │   │   └── Modal.tsx
+   │   ├── lib/
+   │   │   ├── supabaseClient.ts
+   │   │   └── crypto.ts
+   │   ├── store/
+   │   │   └── useVaultStore.ts
+   │   └── hooks/
+   │       └── useAutoLock.ts
+   ├── next.config.js
+   ├── tailwind.config.js
+   └── package.json
+
+7. THIẾT LẬP SUPABASE
+   - Tạo project Supabase, lấy URL và anon key.
+   - Chạy SQL:
+       CREATE TABLE public.profiles (
+         id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+         salt TEXT NOT NULL,
+         encrypted_verification TEXT NOT NULL,
+         created_at TIMESTAMPTZ DEFAULT NOW()
+       );
+       CREATE TABLE public.vault (
+         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+         user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+         encrypted_data JSONB NOT NULL,
+         iv TEXT NOT NULL,
+         created_at TIMESTAMPTZ DEFAULT NOW(),
+         updated_at TIMESTAMPTZ DEFAULT NOW()
+       );
+       ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+       ALTER TABLE public.vault ENABLE ROW LEVEL SECURITY;
+       CREATE POLICY "Individual profiles access" ON public.profiles FOR ALL USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
+       CREATE POLICY "Users vault ownership" ON public.vault FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+8. LOGIC CHÍNH (TÓM TẮT)
+   - Crypto: Argon2id (hoặc PBKDF2 fallback) -> AES-256-GCM. Mỗi lần mã hóa dùng IV mới, lưu IV kèm ciphertext.
+   - Store: Zustand giữ key và danh sách plaintext. Không persist key.
+   - Auth: Supabase Auth client-side, session tự động refresh.
+   - Passcode: Kiểm tra bằng cách thử giải mã verification.
+   - CRUD: Tất cả thao tác qua Supabase JavaScript SDK, gọi trực tiếp từ browser.
+   - Auto-lock: Xóa key khỏi store, redirect.
+
+9. GIAO DIỆN
+   - Dark mode toggle.
+   - Header: tên ứng dụng, nút khóa, chuyển theme.
+   - Vault: input tìm kiếm, grid card. Mỗi card: favicon tự động (dùng Google S2 converter hoặc tự fetch), tên, URL rút gọn, username, icon copy, edit, delete.
+   - Modal thêm/sửa: thiết kế đẹp, responsive, có generator password.
+
+10. TRIỂN KHAI CLOUDFLARE PAGES & PWA
+    - Deploy qua Git repository.
+    - Cấu hình build command: npm run build, output directory: out.
+    - Thêm headers bảo mật và redirect rule nếu cần.
+    - PWA: manifest.json với các icon 192x192, 512x512.
+    - Service Worker không cache vault data.
+
+11. LƯU Ý BẢO MẬT
+    - Tuyệt đối không log key hoặc lưu vào localStorage.
+    - CSP header chặt chẽ để chống XSS.
+    - Hạn chế số lần thử passcode (5 lần).
+    - Xóa clipboard sau 30 giây (không bắt buộc, nhưng nâng cao bảo mật).
+    - Supabase RLS đảm bảo user chỉ xem được dữ liệu của chính mình.
+    - Sử dụng HTTPS và HSTS (Cloudflare tự động).
+
+================================================================================
+  Tài liệu này tổng hợp toàn bộ trao đổi, sẵn sàng để sao chép và dán vào Cursor
+  nhằm xây dựng ứng dụng một cách tuần tự.
+================================================================================

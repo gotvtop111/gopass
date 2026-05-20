@@ -1,0 +1,48 @@
+================================================================================
+  HƯỚNG DẪN TRIỂN KHAI — SITE PASSWORD VAULT
+================================================================================
+
+★ TRIỂN KHAI KHÔNG CẦN CHẠY LOCAL: xem file HUONG_DAN_CLOUDFLARE.txt
+
+YÊU CẦU (chỉ khi dev/build trên máy): Node.js 18+ (https://nodejs.org)
+
+1. CÀI ĐẶT
+   cd "z:\01. Code AI\01. Site Password"
+   npm install
+   copy .env.example .env.local
+   (Điền NEXT_PUBLIC_SUPABASE_URL và NEXT_PUBLIC_SUPABASE_ANON_KEY)
+
+2. SUPABASE
+   - Tạo project tại https://supabase.com
+   - SQL Editor: chạy file supabase/schema.sql
+   - Authentication > Providers: bật Email
+   - (Tùy chọn) tắt "Confirm email" để test nhanh
+
+3. ICON PWA
+   Thêm 2 file PNG vào public/icons/:
+   - icon-192.png (192x192)
+   - icon-512.png (512x512)
+
+4. CHẠY LOCAL
+   npm run dev
+   Mở http://localhost:3000
+
+5. BUILD & CLOUDFLARE PAGES
+   npm run build
+   Thư mục output: out/
+   - Build command: npm run build
+   - Output directory: out
+   - Biến môi trường: NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+6. IMPORT / EXPORT
+   - Vault → Import / Export
+   - Nhập: .csv, .xlsx (gồm CSV xuất từ Google Chrome)
+   - Xuất: CSV, CSV định dạng Google, Excel (.xlsx)
+
+7. BẢO MẬT
+   - Passcode không lưu server; chỉ salt + ciphertext verification
+   - Vault mã hóa AES-256-GCM phía client
+   - Khóa chỉ trong RAM (Zustand), auto-lock 5 phút
+   - Sau 5 lần sai passcode: đăng xuất
+
+================================================================================

@@ -1,0 +1,186 @@
+================================================================================
+  HƯỚNG DẪN CÀI ĐẶT TRỰC TIẾP TRÊN CLOUDFLARE
+  (Không cần chạy npm / dev trên máy tính cá nhân)
+================================================================================
+
+Tổng quan: Bạn đẩy mã nguồn lên GitHub → Cloudflare Pages tự build trên cloud
+→ trang web chạy trên CDN Cloudflare. Máy bạn chỉ cần trình duyệt.
+
+================================================================================
+PHẦN A — CHUẨN BỊ TÀI KHOẢN (15 phút)
+================================================================================
+
+1. Tài khoản GitHub (miễn phí)
+   https://github.com/signup
+
+2. Tài khoản Supabase (database + đăng nhập)
+   https://supabase.com → New project
+   - Ghi lại: Project URL  (dạng https://xxxxx.supabase.co)
+   - Ghi lại: anon public key (Settings → API → anon key)
+
+3. Tài khoản Cloudflare (miễn phí)
+   https://dash.cloudflare.com/sign-up
+
+================================================================================
+PHẦN B — THIẾT LẬP SUPABASE (không cần cài gì trên PC)
+================================================================================
+
+Bước B1. Tạo project Supabase (nếu chưa có)
+
+Bước B2. Chạy SQL tạo bảng
+   - Vào Supabase Dashboard → SQL Editor → New query
+   - Mở file supabase/schema.sql trong repo, copy toàn bộ, dán vào Editor
+   - Nhấn Run
+
+Bước B3. Bật đăng nhập Email
+   - Authentication → Providers → Email → bật Enable Email provider
+   - (Khuyến nghị khi test) Authentication → Providers → Email
+     → tắt "Confirm email" để đăng ký xong dùng ngay
+
+Bước B4. Lưu 2 giá trị cho Cloudflare (Phần D):
+   NEXT_PUBLIC_SUPABASE_URL     = Project URL
+   NEXT_PUBLIC_SUPABASE_ANON_KEY = anon public key
+
+================================================================================
+PHẦN C — ĐƯA MÃ NGUỒN LÊN GITHUB (không cần Node.js)
+================================================================================
+
+Cách 1 — Upload trực tiếp trên web GitHub (đơn giản nhất)
+
+   C1. Đăng nhập GitHub → nút "+" → New repository
+       - Tên ví dụ: site-password-vault
+       - Public hoặc Private đều được
+       - KHÔNG tick "Add README" nếu repo trống
+       - Create repository
+
+   C2. Trang repo → Add file → Upload files
+       - Kéo thả TOÀN BỘ thư mục dự án (trừ node_modules, .next, out)
+       - Không upload: node_modules, .next, out, .env.local
+       - Commit changes
+
+Cách 2 — GitHub Desktop (nếu quen giao diện)
+   - File → Add local repository → chọn thư mục dự án
+   - Publish repository
+
+Lưu ý: File .env.local KHÔNG đưa lên GitHub (chứa secret). Biến môi trường
+        chỉ cấu hình trên Cloudflare Dashboard.
+
+================================================================================
+PHẦN D — TRIỂN KHAI CLOUDFLARE PAGES (build trên cloud)
+================================================================================
+
+D1. Đăng nhập Cloudflare Dashboard
+    https://dash.cloudflare.com → Workers & Pages
+
+D2. Create application → Pages → Connect to Git
+
+D3. Authorize GitHub → chọn repository site-password-vault
+
+D4. Cấu hình Build (QUAN TRỌNG — copy chính xác):
+
+    ┌─────────────────────────────────────────────────────────────┐
+    │ Framework preset     │ None (hoặc Next.js nếu có)         │
+    │ Build command        │ npm run build                       │
+    │ Build output directory│ out                                │
+    │ Root directory       │ /  (để trống nếu code ở gốc repo)   │
+    └─────────────────────────────────────────────────────────────┘
+
+D5. Environment variables (Production) — Add variable:
+
+    NEXT_PUBLIC_SUPABASE_URL      = https://xxxxx.supabase.co
+    NEXT_PUBLIC_SUPABASE_ANON_KEY = eyJhbGciOi... (anon key)
+
+D6. (Khuyến nghị) Biến Node version:
+    - Settings → Environment variables → Add:
+      NODE_VERSION = 20
+
+D7. Save and Deploy
+    - Cloudflare tự chạy: npm install → npm run build → publish thư mục out/
+    - Lần đầu mất khoảng 2–5 phút
+
+D8. Lấy URL trang web
+    - Sau khi Success: https://<tên-project>.pages.dev
+    - Có thể đổi tên project trong Settings → General
+
+================================================================================
+PHẦN E — TÙY CHỈNH DOMAIN (không bắt buộc)
+================================================================================
+
+   Pages project → Custom domains → Set up a custom domain
+   - Nhập domain bạn sở hữu (vd: vault.example.com)
+   - Làm theo hướng dẫn DNS (thường thêm CNAME trỏ về pages.dev)
+   - HTTPS tự động do Cloudflare cấp
+
+================================================================================
+PHẦN F — CẬP NHẬT SAU NÀY (vẫn không cần local)
+================================================================================
+
+   - Sửa code trên GitHub (Upload file hoặc Edit file trên web)
+   - Mỗi lần push/commit → Cloudflare tự build lại
+   - Xem log: Pages project → Deployments → click deployment → Build log
+
+   Đổi biến Supabase:
+   - Pages → Settings → Environment variables → sửa → Redeploy
+
+================================================================================
+PHẦN G — XỬ LÝ LỖI BUILD THƯỜNG GẶP
+================================================================================
+
+Lỗi: "Output directory out not found"
+   → Kiểm tra Build command = npm run build
+   → Kiểm tra Output directory = out (chữ thường)
+   → Xem build log có lỗi TypeScript/npm không
+
+Lỗi: Trang trắng / 404 khi refresh /vault
+   → File public/_redirects phải có:  /*    /index.html   200
+
+Lỗi: Không đăng nhập được Supabase
+   → Kiểm tra biến NEXT_PUBLIC_* trên Cloudflare (Production)
+   → Redeploy sau khi thêm biến
+   → Supabase: Authentication → URL Configuration → Site URL
+     thêm URL Cloudflare (*.pages.dev)
+
+Lỗi: Build hết bộ nhớ
+   → Settings → NODE_VERSION=20
+   → Hoặc tăng plan (thường free tier đủ cho Next static export)
+
+================================================================================
+PHẦN H — IMPORT MẬT KHẨU TỪ GOOGLE (dùng trên trang đã deploy)
+================================================================================
+
+Sau khi site chạy trên Cloudflare:
+
+1. Đăng ký / đăng nhập → tạo passcode vault
+2. Vào trang Vault → khối "Import / Export"
+3. Xuất từ Google Chrome:
+   - Mở chrome://settings/passwords
+   - ⋮ (menu) → Xuất mật khẩu → lưu file .csv
+   - File có cột: name, url, username, password, note
+4. Trên vault: Nhập CSV / Excel → chọn file → xem preview → Import
+5. Mỗi mục được mã hóa AES trên trình duyệt rồi mới lưu Supabase
+
+Xuất ngược (backup):
+   - Xuất CSV / Xuất CSV (Google) / Xuất Excel
+   - File plaintext: chỉ lưu ở máy an toàn, xóa sau khi dùng xong
+
+================================================================================
+PHẦN I — BẢO MẬT KHI DEPLOY CLOUDFLARE
+================================================================================
+
+   ✓ HTTPS mặc định
+   ✓ Headers bảo mật trong public/_headers (CSP, X-Frame-Options...)
+   ✓ Không commit .env.local
+   ✓ Chỉ dùng anon key Supabase (không dùng service_role trên frontend)
+   ✓ RLS bật trên profiles và vault (schema.sql)
+
+================================================================================
+TÓM TẮT NHANH
+================================================================================
+
+  GitHub (code)  →  Cloudflare Pages (npm run build)  →  *.pages.dev
+                           ↑
+                    Supabase (auth + DB đã mã hóa)
+
+  Máy bạn: chỉ cần trình duyệt + tài khoản GitHub/Supabase/Cloudflare.
+
+================================================================================
