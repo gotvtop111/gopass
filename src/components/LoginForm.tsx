@@ -18,7 +18,9 @@ import {
 import {
   createFullProfile,
   fetchPasswordSlotForLogin,
+  isUsernameAvailable,
 } from "@/lib/profileAuth";
+import { formatAuthError } from "@/lib/authErrors";
 import { decryptAuthSecret } from "@/lib/authSecrets";
 
 interface LoginFormProps {
@@ -74,6 +76,12 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
       return;
     }
 
+    const available = await isUsernameAvailable(uname);
+    if (!available) {
+      setError("Username này đã được dùng. Chọn username khác.");
+      return;
+    }
+
     const loginEmail = loginEmailForUser(uname, email);
     const internalPw = generateInternalAuthPassword();
 
@@ -84,7 +92,11 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
     if (signUpError) throw signUpError;
 
     const userId = signUpData.user?.id;
-    if (!userId) throw new Error("Không tạo được tài khoản.");
+    if (!userId) {
+      throw new Error(
+        "Supabase không trả về user sau đăng ký. Tắt «Confirm email» trong Authentication hoặc xác nhận email rồi thử đăng nhập."
+      );
+    }
 
     const pc1 = await createPasscodeSlot(passcode1);
     const pc2 = await createPasscodeSlot(passcode2);
@@ -110,8 +122,12 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
     });
 
     await supabase.auth.signOut();
+
+    const needsEmailConfirm = !signUpData.session;
     setMessage(
-      "Đăng ký thành công. Đăng nhập bằng username và một trong hai mật khẩu truy cập (mỗi lần hệ thống chọn ngẫu nhiên một lớp)."
+      needsEmailConfirm
+        ? "Đã tạo tài khoản. Kiểm tra email để xác nhận (nếu Supabase bật Confirm email), sau đó đăng nhập bằng username và một trong hai mật khẩu truy cập."
+        : "Đăng ký thành công. Đăng nhập bằng username và một trong hai mật khẩu truy cập (mỗi lần hệ thống chọn ngẫu nhiên một lớp)."
     );
     setMode("login");
     setPassword1("");
@@ -178,7 +194,9 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
         await handleLogin();
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Đã xảy ra lỗi");
+      setError(
+        formatAuthError(err, mode === "register" ? "register" : "login")
+      );
     } finally {
       setLoading(false);
     }
@@ -213,7 +231,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
             autoComplete="email"
           />
           <p className="mt-1 text-xs text-vault-muted">
-            Bỏ trống email → dùng <code className="text-vault-accent">username@vault.local</code>
+            Bỏ trống email → dùng <code className="text-vault-accent">username@example.net</code>
           </p>
         </div>
       )}

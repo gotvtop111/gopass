@@ -100,7 +100,8 @@ export function loginEmailForUser(
   const trimmed = email?.trim();
   if (trimmed) return trimmed.toLowerCase();
   const safe = username.trim().toLowerCase().replace(/[^a-z0-9._-]/g, "");
-  return `${safe || "user"}@vault.local`;
+  // example.net: TLD dự phòng RFC 2606 — Supabase thường từ chối @vault.local
+  return `${safe || "user"}@example.net`;
 }
 
 export function normalizeUsername(username: string): string {
