@@ -118,6 +118,30 @@ export async function createVerificationBlob(
   return { key, encrypted };
 }
 
+export async function generateVaultMasterKey(): Promise<CryptoKey> {
+  const raw = new Uint8Array(32);
+  crypto.getRandomValues(raw);
+  return importAesKey(raw);
+}
+
+/** Một khóa két dùng chung — bọc bằng khóa phái sinh từ từng passcode */
+export async function wrapVaultMasterKey(
+  master: CryptoKey,
+  wrappingKey: CryptoKey
+): Promise<EncryptedPayload> {
+  const raw = await crypto.subtle.exportKey("raw", master);
+  return encrypt({ k: toBase64(new Uint8Array(raw)) }, wrappingKey);
+}
+
+export async function unwrapVaultMasterKey(
+  ciphertext: string,
+  iv: string,
+  wrappingKey: CryptoKey
+): Promise<CryptoKey> {
+  const { k } = await decrypt<{ k: string }>(ciphertext, iv, wrappingKey);
+  return importAesKey(fromBase64(k));
+}
+
 export async function verifyPasscode(
   passcode: string,
   saltBase64: string,

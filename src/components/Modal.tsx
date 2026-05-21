@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId } from "react";
+import { createPortal } from "react-dom";
 
 interface ModalProps {
   open: boolean;
@@ -9,7 +10,6 @@ interface ModalProps {
   children: React.ReactNode;
 }
 
-/** Overlay div — tránh lỗi backdrop <dialog> còn treo sau khi đóng */
 export function Modal({ open, onClose, title, children }: ModalProps) {
   const titleId = useId();
 
@@ -27,16 +27,16 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
     };
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!open || typeof document === "undefined") return null;
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center p-3 sm:items-center sm:p-4"
+      className="fixed inset-0 z-[100] flex items-end justify-center p-3 sm:items-center sm:p-4"
       role="presentation"
     >
       <button
         type="button"
-        className="absolute inset-0 bg-black/60"
+        className="absolute inset-0 cursor-default bg-black/60"
         aria-label="Đóng"
         onClick={onClose}
       />
@@ -44,8 +44,8 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="relative z-10 flex max-h-[min(92dvh,calc(100dvh-1.5rem))] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-vault-border bg-vault-surface shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
+        className="relative z-[101] flex w-full max-w-md flex-none flex-col overflow-hidden rounded-2xl border border-vault-border bg-vault-surface shadow-2xl max-h-[min(92dvh,calc(100dvh-1.5rem))]"
+        onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex shrink-0 items-center justify-between border-b border-vault-border px-4 py-3 sm:px-5 sm:py-4">
           <h2
@@ -67,6 +67,7 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
           {children}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

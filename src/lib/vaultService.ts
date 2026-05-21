@@ -1,8 +1,59 @@
 import { supabase } from "@/lib/supabaseClient";
 import { decrypt, encrypt } from "@/lib/crypto";
-import type { PasswordItem, VaultRow } from "@/types";
+import {
+  profileHasVaultMaster,
+  resolveVaultEncryptionKey,
+} from "@/lib/authSecrets";
+import type { AuthSlot } from "@/lib/challenge";
+import type { PasswordItem, ProfileRow, VaultRow } from "@/types";
 
 export { fetchProfile } from "@/lib/profileAuth";
+
+/** Mở két + tải mục — tự thử passcode lớp 1/2 (tài khoản cũ có thể dùng khóa khác nhau) */
+export async function unlockVaultAndLoadItems(
+  userId: string,
+  profile: ProfileRow,
+  passcode: string,
+  preferredSlot?: AuthSlot
+): Promise<{ key: CryptoKey; items: PasswordItem[]; slot: AuthSlot }> {
+  const slots: AuthSlot[] = preferredSlot
+    ? [preferredSlot, preferredSlot === 1 ? 2 : 1]
+    : [1, 2];
+
+  let best: { key: CryptoKey; items: PasswordItem[]; slot: AuthSlot } | null =
+    null;
+
+  for (const trySlot of slots) {
+    const { key, slot } = await resolveVaultEncryptionKey(
+      profile,
+      passcode,
+      trySlot
+    );
+    if (!key || slot === null) continue;
+    const items = await loadVaultItems(userId, key);
+    if (profileHasVaultMaster(profile)) {
+      return { key, items, slot };
+    }
+    if (!best || items.length > best.items.length) {
+      best = { key, items, slot };
+    }
+  }
+
+  if (!best) {
+    throw new Error("PASSCODE_INVALID");
+  }
+
+  const { count } = await supabase
+    .from("vault")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId);
+
+  if ((count ?? 0) > 0 && best.items.length === 0) {
+    throw new Error("VAULT_DECRYPT_FAILED");
+  }
+
+  return best;
+}
 
 export async function loadVaultItems(
   userId: string,

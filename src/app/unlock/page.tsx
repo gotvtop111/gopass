@@ -5,12 +5,9 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { PasscodeGate } from "@/components/PasscodeGate";
 import { useVaultStore } from "@/store/useVaultStore";
-import { useFullLogout } from "@/hooks/useFullLogout";
-
 export default function UnlockPage() {
   const router = useRouter();
   const isUnlocked = useVaultStore((s) => s.isUnlocked);
-  const fullLogout = useFullLogout();
   const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -27,19 +24,6 @@ export default function UnlockPage() {
       setUserId(session.user.id);
     });
   }, [router, isUnlocked]);
-
-  useEffect(() => {
-    const onHide = () => {
-      void fullLogout();
-    };
-    document.addEventListener("visibilitychange", () => {
-      if (document.hidden) onHide();
-    });
-    window.addEventListener("pagehide", onHide);
-    return () => {
-      window.removeEventListener("pagehide", onHide);
-    };
-  }, [fullLogout]);
 
   if (!userId) {
     return (

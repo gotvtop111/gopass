@@ -73,6 +73,8 @@ export interface CreateProfilePayload {
   passcode2: { salt: string; ciphertext: string; iv: string };
   password1: { salt: string; ciphertext: string; iv: string };
   password2: { salt: string; ciphertext: string; iv: string };
+  vaultMaster1: { ciphertext: string; iv: string };
+  vaultMaster2: { ciphertext: string; iv: string };
 }
 
 export async function isUsernameAvailable(username: string): Promise<boolean> {
@@ -103,6 +105,10 @@ export async function createFullProfile(
     p_password_salt_2: payload.password2.salt,
     p_password_secret_2: payload.password2.ciphertext,
     p_password_iv_2: payload.password2.iv,
+    p_vault_master_1: payload.vaultMaster1.ciphertext,
+    p_vault_master_iv_1: payload.vaultMaster1.iv,
+    p_vault_master_2: payload.vaultMaster2.ciphertext,
+    p_vault_master_iv_2: payload.vaultMaster2.iv,
   });
 
   if (error) {
@@ -122,6 +128,10 @@ export async function createFullProfile(
       password_salt_2: payload.password2.salt,
       password_secret_2: payload.password2.ciphertext,
       password_iv_2: payload.password2.iv,
+      vault_master_1: payload.vaultMaster1.ciphertext,
+      vault_master_iv_1: payload.vaultMaster1.iv,
+      vault_master_2: payload.vaultMaster2.ciphertext,
+      vault_master_iv_2: payload.vaultMaster2.iv,
     });
     if (insertError) throw error;
   }

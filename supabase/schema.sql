@@ -16,6 +16,10 @@ CREATE TABLE public.profiles (
   password_salt_2 TEXT NOT NULL,
   password_secret_2 TEXT NOT NULL,
   password_iv_2 TEXT NOT NULL,
+  vault_master_1 TEXT,
+  vault_master_iv_1 TEXT,
+  vault_master_2 TEXT,
+  vault_master_iv_2 TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -112,7 +116,11 @@ CREATE OR REPLACE FUNCTION public.register_profile(
   p_password_iv_1 text,
   p_password_salt_2 text,
   p_password_secret_2 text,
-  p_password_iv_2 text
+  p_password_iv_2 text,
+  p_vault_master_1 text DEFAULT NULL,
+  p_vault_master_iv_1 text DEFAULT NULL,
+  p_vault_master_2 text DEFAULT NULL,
+  p_vault_master_iv_2 text DEFAULT NULL
 )
 RETURNS void
 LANGUAGE plpgsql
@@ -140,13 +148,15 @@ BEGIN
     salt, encrypted_verification, verification_iv,
     passcode_salt_2, passcode_verification_2, passcode_iv_2,
     password_salt_1, password_secret_1, password_iv_1,
-    password_salt_2, password_secret_2, password_iv_2
+    password_salt_2, password_secret_2, password_iv_2,
+    vault_master_1, vault_master_iv_1, vault_master_2, vault_master_iv_2
   ) VALUES (
     p_user_id, trim(p_username), p_login_email,
     p_salt, p_encrypted_verification, p_verification_iv,
     p_passcode_salt_2, p_passcode_verification_2, p_passcode_iv_2,
     p_password_salt_1, p_password_secret_1, p_password_iv_1,
-    p_password_salt_2, p_password_secret_2, p_password_iv_2
+    p_password_salt_2, p_password_secret_2, p_password_iv_2,
+    p_vault_master_1, p_vault_master_iv_1, p_vault_master_2, p_vault_master_iv_2
   );
 END;
 $$;

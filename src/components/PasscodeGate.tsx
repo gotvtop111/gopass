@@ -7,14 +7,9 @@ import {
   setPasscodeChallengeSlot,
   clearPasscodeChallengeSlot,
 } from "@/lib/challenge";
-import {
-  createPasscodeSlot,
-  getPasscodeSlotFields,
-  profileHasDualPassword,
-  verifyPasscode,
-} from "@/lib/authSecrets";
+import { profileHasDualPassword } from "@/lib/authSecrets";
 import { fetchProfile } from "@/lib/profileAuth";
-import { loadVaultItems } from "@/lib/vaultService";
+import { unlockVaultAndLoadItems } from "@/lib/vaultService";
 import { useVaultStore } from "@/store/useVaultStore";
 import { useFullLogout } from "@/hooks/useFullLogout";
 
@@ -70,16 +65,22 @@ export function PasscodeGate({ userId }: PasscodeGateProps) {
       const slot =
         pcSlot ??
         (profile.passcode_salt_2 ? pickRandomSlot() : (1 as const));
-      const fields = getPasscodeSlotFields(profile, slot);
 
-      const { valid, key } = await verifyPasscode(
+      const { key, items } = await unlockVaultAndLoadItems(
+        userId,
+        profile,
         passcode,
-        fields.salt,
-        fields.ciphertext,
-        fields.iv
+        slot
       );
 
-      if (!valid || !key) {
+      setProfile(profile);
+      setEncryptionKey(key);
+      setItems(items);
+      clearPasscodeChallengeSlot();
+      router.replace("/vault");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      if (msg === "PASSCODE_INVALID") {
         const next = attempts + 1;
         setAttempts(next);
         if (next >= MAX_ATTEMPTS) {
@@ -87,18 +88,16 @@ export function PasscodeGate({ userId }: PasscodeGateProps) {
           return;
         }
         setError(
-          `Passcode sai (lớp ${slot}). Còn ${MAX_ATTEMPTS - next} lần. Thử passcode còn lại.`
+          `Passcode không đúng. Còn ${MAX_ATTEMPTS - next} lần — thử passcode còn lại (bỏ qua lớp ${pcSlot ?? "?"} hiển thị).`
         );
         return;
       }
-
-      setProfile(profile);
-      setEncryptionKey(key);
-      const items = await loadVaultItems(userId, key);
-      setItems(items);
-      clearPasscodeChallengeSlot();
-      router.replace("/vault");
-    } catch (err) {
+      if (msg === "VAULT_DECRYPT_FAILED") {
+        setError(
+          "Passcode đúng nhưng không giải mã được dữ liệu vault. Thử passcode còn lại hoặc dùng đúng passcode lúc tạo mục đầu tiên."
+        );
+        return;
+      }
       setError(err instanceof Error ? err.message : "Không mở được két");
     } finally {
       setLoading(false);
@@ -129,13 +128,9 @@ export function PasscodeGate({ userId }: PasscodeGateProps) {
         Mở khóa két
       </h2>
       <p className="mb-6 text-center text-sm text-vault-muted">
-        Nhập một trong hai passcode. Lần này hệ thống kiểm tra{" "}
-        {pcSlot ? (
-          <span className="text-amber-400/90">lớp {pcSlot}</span>
-        ) : (
-          "ngẫu nhiên"
-        )}
-        .
+        Nhập <strong className="text-white">một trong hai passcode</strong> của
+        bạn. Gợi ý lớp {pcSlot ?? "—"} chỉ để thử thách khi sao chép — mở két chấp
+        nhận passcode 1 hoặc 2.
       </p>
 
       <form onSubmit={handleUnlock} className="space-y-4">

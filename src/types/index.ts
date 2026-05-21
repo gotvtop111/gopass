@@ -30,6 +30,10 @@ export interface ProfileRow {
   password_salt_2?: string | null;
   password_secret_2?: string | null;
   password_iv_2?: string | null;
+  vault_master_1?: string | null;
+  vault_master_iv_1?: string | null;
+  vault_master_2?: string | null;
+  vault_master_iv_2?: string | null;
   created_at?: string;
 }
 

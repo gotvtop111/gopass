@@ -16,6 +16,10 @@ import {
   passwordsMustDiffer,
 } from "@/lib/authSecrets";
 import {
+  generateVaultMasterKey,
+  wrapVaultMasterKey,
+} from "@/lib/crypto";
+import {
   createFullProfile,
   fetchPasswordSlotForLogin,
   isUsernameAvailable,
@@ -100,6 +104,9 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
 
     const pc1 = await createPasscodeSlot(passcode1);
     const pc2 = await createPasscodeSlot(passcode2);
+    const vaultMaster = await generateVaultMasterKey();
+    const vm1 = await wrapVaultMasterKey(vaultMaster, pc1.key);
+    const vm2 = await wrapVaultMasterKey(vaultMaster, pc2.key);
     const pw1 = await encryptAuthSecret(internalPw, password1);
     const pw2 = await encryptAuthSecret(internalPw, password2);
 
@@ -119,6 +126,8 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
       },
       password1: pw1,
       password2: pw2,
+      vaultMaster1: vm1,
+      vaultMaster2: vm2,
     });
 
     await supabase.auth.signOut();

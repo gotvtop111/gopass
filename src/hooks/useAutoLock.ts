@@ -2,12 +2,14 @@
 
 import { useEffect, useRef, useCallback } from "react";
 import { useFullLogout } from "@/hooks/useFullLogout";
+import { useVaultLock } from "@/hooks/useVaultLock";
 
 const IDLE_MS = 5 * 60 * 1000;
 
-/** Khóa / thoát tab / idle → đăng xuất hoàn toàn (phải đăng nhập lại) */
+/** Ẩn tab → khóa két; idle 5 phút → đăng xuất hoàn toàn */
 export function useAutoLock(enabled: boolean) {
   const fullLogout = useFullLogout();
+  const vaultLock = useVaultLock();
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const lock = useCallback(() => {
@@ -29,9 +31,9 @@ export function useAutoLock(enabled: boolean) {
     );
 
     const onVisibility = () => {
-      if (document.hidden) lock();
+      if (document.hidden) vaultLock();
     };
-    const onPageHide = () => lock();
+    const onPageHide = () => vaultLock();
 
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("pagehide", onPageHide);
@@ -43,5 +45,5 @@ export function useAutoLock(enabled: boolean) {
       window.removeEventListener("pagehide", onPageHide);
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [enabled, lock, resetTimer]);
+  }, [enabled, lock, resetTimer, vaultLock]);
 }

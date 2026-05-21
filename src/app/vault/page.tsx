@@ -8,29 +8,35 @@ import { VaultImportCollapsible } from "@/components/VaultImportCollapsible";
 import { VaultList } from "@/components/VaultList";
 import { useVaultStore } from "@/store/useVaultStore";
 import { useAutoLock } from "@/hooks/useAutoLock";
-import { useFullLogout } from "@/hooks/useFullLogout";
+import { useVaultLock } from "@/hooks/useVaultLock";
+import { loadVaultItems } from "@/lib/vaultService";
 
 export default function VaultPage() {
   const router = useRouter();
   const isUnlocked = useVaultStore((s) => s.isUnlocked);
-  const fullLogout = useFullLogout();
+  const encryptionKey = useVaultStore((s) => s.encryptionKey);
+  const setItems = useVaultStore((s) => s.setItems);
+  const vaultLock = useVaultLock();
   const [userId, setUserId] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState("");
 
   useAutoLock(isUnlocked);
 
   useEffect(() => {
     if (!isUnlocked) return;
     const onHide = () => {
-      void fullLogout();
+      vaultLock();
     };
-    document.addEventListener("visibilitychange", () => {
+    const onVis = () => {
       if (document.hidden) onHide();
-    });
+    };
+    document.addEventListener("visibilitychange", onVis);
     window.addEventListener("pagehide", onHide);
     return () => {
+      document.removeEventListener("visibilitychange", onVis);
       window.removeEventListener("pagehide", onHide);
     };
-  }, [isUnlocked, fullLogout]);
+  }, [isUnlocked, vaultLock]);
 
   useEffect(() => {
     if (!isUnlocked) {
@@ -47,6 +53,18 @@ export default function VaultPage() {
     });
   }, [router, isUnlocked]);
 
+  useEffect(() => {
+    if (!isUnlocked || !userId || !encryptionKey) return;
+    setLoadError("");
+    loadVaultItems(userId, encryptionKey)
+      .then(setItems)
+      .catch((err) => {
+        setLoadError(
+          err instanceof Error ? err.message : "Không tải được danh sách mật khẩu"
+        );
+      });
+  }, [isUnlocked, userId, encryptionKey, setItems]);
+
   if (!isUnlocked || !userId) {
     return (
       <main className="flex min-h-dvh items-center justify-center px-4">
@@ -58,6 +76,12 @@ export default function VaultPage() {
   return (
     <main className="mx-auto flex min-h-0 w-full max-w-7xl flex-col px-3 py-4 sm:px-4 sm:py-6">
       <AppHeader />
+
+      {loadError && (
+        <p className="mt-4 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">
+          {loadError}
+        </p>
+      )}
 
       <div className="mt-4 flex min-h-0 flex-1 flex-col gap-5 lg:mt-6 lg:flex-row lg:items-start lg:gap-8">
         <section

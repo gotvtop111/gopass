@@ -5,8 +5,9 @@ import {
   generateSalt,
   createVerificationBlob,
   verifyPasscode,
+  unwrapVaultMasterKey,
 } from "@/lib/crypto";
-import type { EncryptedPayload } from "@/types";
+import type { EncryptedPayload, ProfileRow } from "@/types";
 import type { AuthSlot } from "@/lib/challenge";
 
 function toBase64(bytes: Uint8Array): string {
@@ -119,6 +120,73 @@ export type PasscodeSlotFields = {
   ciphertext: string;
   iv: string;
 };
+
+export function getVaultMasterWrapFields(
+  profile: ProfileRow,
+  slot: AuthSlot
+): { ciphertext: string; iv: string } | null {
+  if (slot === 1 && profile.vault_master_1 && profile.vault_master_iv_1) {
+    return {
+      ciphertext: profile.vault_master_1,
+      iv: profile.vault_master_iv_1,
+    };
+  }
+  if (slot === 2 && profile.vault_master_2 && profile.vault_master_iv_2) {
+    return {
+      ciphertext: profile.vault_master_2,
+      iv: profile.vault_master_iv_2,
+    };
+  }
+  return null;
+}
+
+export function profileHasVaultMaster(profile: ProfileRow): boolean {
+  return Boolean(
+    profile.vault_master_1 &&
+      profile.vault_master_iv_1 &&
+      profile.vault_master_2 &&
+      profile.vault_master_iv_2
+  );
+}
+
+/** Một khóa két — thử cả hai lớp passcode (bỏ qua «lớp» hiển thị nếu nhập đúng passcode kia) */
+export async function resolveVaultEncryptionKey(
+  profile: ProfileRow,
+  passcode: string,
+  preferredSlot?: AuthSlot
+): Promise<{ key: CryptoKey | null; slot: AuthSlot | null }> {
+  const order: AuthSlot[] = preferredSlot
+    ? [preferredSlot, preferredSlot === 1 ? 2 : 1]
+    : [1, 2];
+
+  for (const slot of order) {
+    const fields = getPasscodeSlotFields(profile, slot);
+    if (!fields) continue;
+    const { valid, key: passcodeKey } = await verifyPasscode(
+      passcode,
+      fields.salt,
+      fields.ciphertext,
+      fields.iv
+    );
+    if (!valid || !passcodeKey) continue;
+
+    const wrap = getVaultMasterWrapFields(profile, slot);
+    if (wrap) {
+      try {
+        const master = await unwrapVaultMasterKey(
+          wrap.ciphertext,
+          wrap.iv,
+          passcodeKey
+        );
+        return { key: master, slot };
+      } catch {
+        continue;
+      }
+    }
+    return { key: passcodeKey, slot };
+  }
+  return { key: null, slot: null };
+}
 
 export function getPasscodeSlotFields(
   profile: {

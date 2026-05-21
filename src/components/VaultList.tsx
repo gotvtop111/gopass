@@ -225,16 +225,18 @@ export function VaultList({ userId }: VaultListProps) {
         />
       )}
 
-      <VaultItemForm
-        open={modalOpen}
-        onClose={() => {
-          setModalOpen(false);
-          setEditing(null);
-        }}
-        initial={editing}
-        onSave={handleSave}
-        saving={busy}
-      />
+      {modalOpen && (
+        <VaultItemForm
+          open
+          onClose={() => {
+            setModalOpen(false);
+            setEditing(null);
+          }}
+          initial={editing}
+          onSave={handleSave}
+          saving={busy}
+        />
+      )}
     </div>
   );
 }
