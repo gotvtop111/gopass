@@ -77,7 +77,10 @@ export function VaultList({ userId }: VaultListProps) {
   const handleSave = async (
     data: Omit<PasswordItem, "id" | "createdAt" | "updatedAt">
   ) => {
-    if (!encryptionKey) return;
+    if (!encryptionKey) {
+      setError("Két chưa mở. Về trang «Mở khóa két» và nhập passcode trước.");
+      throw new Error("Vault locked");
+    }
     setBusy(true);
     setError("");
     try {
@@ -89,11 +92,13 @@ export function VaultList({ userId }: VaultListProps) {
         const created = await insertVaultItem(userId, data, encryptionKey);
         addItem(created);
       }
+      setModalOpen(false);
+      setEditing(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Lưu thất bại");
+      throw err;
     } finally {
       setBusy(false);
-      setEditing(null);
     }
   };
 
@@ -228,6 +233,7 @@ export function VaultList({ userId }: VaultListProps) {
         }}
         initial={editing}
         onSave={handleSave}
+        saving={busy}
       />
     </div>
   );

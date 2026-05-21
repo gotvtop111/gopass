@@ -17,7 +17,10 @@ interface VaultItemFormProps {
   open: boolean;
   onClose: () => void;
   initial?: PasswordItem | null;
-  onSave: (data: Omit<PasswordItem, "id" | "createdAt" | "updatedAt">) => void;
+  onSave: (
+    data: Omit<PasswordItem, "id" | "createdAt" | "updatedAt">
+  ) => void | Promise<void>;
+  saving?: boolean;
 }
 
 export function VaultItemForm({
@@ -25,8 +28,10 @@ export function VaultItemForm({
   onClose,
   initial,
   onSave,
+  saving = false,
 }: VaultItemFormProps) {
   const [form, setForm] = useState(emptyItem);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -44,12 +49,21 @@ export function VaultItemForm({
     }
   }, [open, initial]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim()) return;
-    onSave(form);
-    onClose();
+    if (!form.name.trim() || submitting || saving) return;
+    setSubmitting(true);
+    try {
+      await onSave(form);
+      onClose();
+    } catch {
+      /* lỗi hiển thị ở VaultList */
+    } finally {
+      setSubmitting(false);
+    }
   };
+
+  const busy = submitting || saving;
 
   return (
     <Modal
@@ -99,8 +113,8 @@ export function VaultItemForm({
         <PasswordGenerator
           onUse={(password) => setForm({ ...form, password })}
         />
-        <button type="submit" className="btn-primary w-full">
-          {initial ? "Cập nhật" : "Thêm"}
+        <button type="submit" disabled={busy} className="btn-primary w-full">
+          {busy ? "Đang lưu..." : initial ? "Cập nhật" : "Thêm"}
         </button>
       </form>
     </Modal>
